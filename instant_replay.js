@@ -1,53 +1,44 @@
 document.addEventListener("DOMContentLoaded", function () {
   const video = document.getElementById("replay-video");
   const playButton = document.getElementById("playButton");
-  const videoTime = document.getElementById("videoTime");
   const metaUrl = document.getElementById("metaUrl");
   const metaTime = document.getElementById("metaTime");
   const metaSize = document.getElementById("metaSize");
 
   // Load latest screen recording
   function loadLatestRecording() {
-    
     chrome.storage.local.get("latestRecording", (result) => {
-  const base64Video = result.latestRecording;
-  if (!base64Video) {
-    videoTime.innerText = "No recent recording found.";
-    return;
-  }
+      const base64Video = result.latestRecording;
+      if (!base64Video) {
+        console.log("No recent recording found.");
+        return;
+      }
 
-  // Set video src
-  video.src = base64Video;
-  video.load();
-
- 
-});
-
+      // Set video src
+      video.src = base64Video;
+      video.load();
+    });
 
     async function getSystemInfo() {
-       const x = document.getElementById("demo");
-
-    const fetchLocation = () => {
-      return new Promise((resolve) => {
-        if ("geolocation" in navigator) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              const lat = position.coords.latitude.toFixed(4);
-              const lon = position.coords.longitude.toFixed(4);
-              resolve(`Latitude: ${lat}<br>Longitude: ${lon}`);
-            },
-            (error) => {
-              console.warn("Geolocation error:", error.message);
-              resolve("Permission denied or unavailable");
-            }
-          );
-        } else {
-          resolve("Geolocation is not supported by this browser.");
-        }
-      });
-    };
-
-
+      const fetchLocation = () => {
+        return new Promise((resolve) => {
+          if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                const lat = position.coords.latitude.toFixed(4);
+                const lon = position.coords.longitude.toFixed(4);
+                resolve(`Latitude: ${lat}<br>Longitude: ${lon}`);
+              },
+              (error) => {
+                console.warn("Geolocation error:", error.message);
+                resolve("Permission denied or unavailable");
+              }
+            );
+          } else {
+            resolve("Geolocation is not supported by this browser.");
+          }
+        });
+      };
 
       const testInternetSpeed = () => {
         return new Promise((resolve) => {
@@ -64,24 +55,18 @@ document.addEventListener("DOMContentLoaded", function () {
           };
 
           image.onerror = () => resolve("Unable to test");
-
-          image.src = `https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg?t=${Date.now()}`;
+          image.src = `https://picsum.photos/200/300?t=${Date.now()}`;
         });
       };
 
       const location = await fetchLocation();
       const internetSpeed = await testInternetSpeed();
 
-      document.getElementById("metaUrl").textContent = window.location.href;
-      document.getElementById("metaTime").textContent = new Date().toLocaleString();
-      document.getElementById("metaOS").textContent = navigator.platform;
-      document.getElementById("metaBrowser").textContent = `${navigator.userAgent}`;
-      document.getElementById("metaSize").textContent = `${window.innerWidth}x${window.innerHeight}`;
       document.getElementById("metaLocation").textContent = location;
       document.getElementById("metaSpeed").textContent = internetSpeed;
     }
 
-    document.addEventListener("DOMContentLoaded", getSystemInfo);
+    getSystemInfo();
   }
 
   playButton.addEventListener("click", () => {
@@ -99,6 +84,7 @@ document.addEventListener("DOMContentLoaded", function () {
   loadLatestRecording();
   setMetadata();
 
+  // Tab switching logic
   document.querySelectorAll("#sideTabs .nav-link").forEach(link => {
     link.addEventListener("click", function (e) {
       e.preventDefault();
@@ -114,225 +100,130 @@ document.addEventListener("DOMContentLoaded", function () {
       const selectedTabContent = document.getElementById(selectedTab);
       selectedTabContent.classList.add("active");
       selectedTabContent.style.display = "block";
-
-      if (selectedTab === "network") {
-        fetchNetworkLogs();
-      }
     });
   });
 
-  function fetchNetworkLogs() {
-    fetch()
-      .then(response => response.json())
-      .then(logs => {
-        networkLogsContainer.innerHTML = '';
-        logs.forEach(log => {
-          const logEntry = document.createElement("div");
-          logEntry.className = "log-entry";
-          const timestamp = new Date(log.timestamp).toLocaleTimeString();
-          logEntry.innerHTML = `
-            <span class="log-timestamp">${timestamp}</span>
-            <span class="log-type">:</span>
-            <span class="log-message">${log.message}</span>
-          `;
-          networkLogsContainer.appendChild(logEntry);
-        });
-      })
-      .catch(error => {
-        console.error("Failed to fetch network logs:", error);
-      });
-  }
-
-  function logNetworkActivity(message) {
+  // Network logging
+  function logNetworkActivity(method, url, status, duration) {
     const logContainer = document.getElementById("network-logs");
     const logEntry = document.createElement("div");
     logEntry.className = "log-entry";
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     logEntry.innerHTML = `
       <span class="log-timestamp">${timestamp}</span>
       <span class="log-type">:</span>
-      <span class="log-message">${message}</span>
+      <span class="log-message">${method} ${url} [${status}] - ${duration}ms</span>
     `;
     logContainer.appendChild(logEntry);
+    logContainer.scrollTop = logContainer.scrollHeight;
   }
 
-  const originalFetch = window.fetch;
-  window.fetch = async function (...args) {
-    const startTime = performance.now();
-    try {
-      const response = await originalFetch.apply(this, args);
-      const duration = (performance.now() - startTime).toFixed(2);
-      logNetworkActivity(`${args[0]} [${response.status}] - ${duration}ms`);
-      return response;
-    } catch (error) {
-      const duration = (performance.now() - startTime).toFixed(2);
-      logNetworkActivity(`${args[0]} [FETCH ERROR] - ${duration}ms`);
-      throw error;
-    }
-  };
-
-  (function () {
-    const originalOpen = XMLHttpRequest.prototype.open;
-    const originalSend = XMLHttpRequest.prototype.send;
-
-    XMLHttpRequest.prototype.open = function (method, url) {
-      this._method = method;
-      this._url = url;
-      return originalOpen.apply(this, arguments);
-    };
-
-    XMLHttpRequest.prototype.send = function () {
-      const startTime = performance.now();
-      this.addEventListener("loadend", () => {
-        const duration = (performance.now() - startTime).toFixed(2);
-        logNetworkActivity(`${this._method} ${this._url} [${this.status}] - ${duration}ms`);
-      });
-      return originalSend.apply(this, arguments);
-    };
-  })();
-
+  // Console logging
   function logToConsoleTab(message, type = "log") {
     const logContainer = document.getElementById("console-logs");
     const logEntry = document.createElement("div");
     logEntry.className = `log-entry ${type}`;
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const words = message.split(/\s+/);
-    const preview = words.slice(0, 5).join(" ") + (words.length > 5 ? "..." : "");
-    const fullMessage = message.replace(/\n/g, "<br>");
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    let displayMessage = message;
+    if (typeof message === 'object') {
+      try {
+        displayMessage = JSON.stringify(message, null, 2);
+      } catch (e) {
+        displayMessage = message.toString();
+      }
+    }
+
     logEntry.innerHTML = `
       <span class="log-timestamp">${timestamp}</span>
       <span class="log-type">:</span>
-      <span class="log-message">${preview}</span>
-      <div class="log-details">${fullMessage}</div>
+      <span class="log-message">${displayMessage}</span>
     `;
-    logEntry.addEventListener("click", () => {
-      logEntry.classList.toggle("expanded");
-    });
+    
     logContainer.appendChild(logEntry);
+    logContainer.scrollTop = logContainer.scrollHeight;
   }
 
-  const originalConsoleError = console.error;
-  console.error = function (...args) {
-    originalConsoleError.apply(console, args);
-    logToConsoleTab(args.join(" "), "error");
+  // Override console methods
+  const originalConsole = {
+    log: console.log,
+    error: console.error,
+    warn: console.warn,
+    info: console.info
   };
 
-  window.onerror = function (msg, url, lineNo, columnNo, error) {
-    const errorMsg = `${msg} at ${url}:${lineNo}:${columnNo}`;
-    logToConsoleTab(errorMsg, "error");
+  console.log = function(...args) {
+    originalConsole.log.apply(console, args);
+    logToConsoleTab(args.join(' '), 'log');
   };
 
+  console.error = function(...args) {
+    originalConsole.error.apply(console, args);
+    logToConsoleTab(args.join(' '), 'error');
+  };
 
-  document.addEventListener("visibilitychange", function () {
-    const isVisible = document.visibilityState === "visible";
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const currentURL = window.location.href;
-    const actionText = isVisible ? "Tab became visible:" : "Tab became hidden:";
-    const dotClass = isVisible ? "visible" : "hidden";
+  console.warn = function(...args) {
+    originalConsole.warn.apply(console, args);
+    logToConsoleTab(args.join(' '), 'warn');
+  };
 
-    const logHTML = `
-      <div class="log-entry">
-        <span class="time">${time}</span>
-        <span class="dot ${dotClass}">:</span>
-        <span class="text-action">${actionText} 
-          <a href="${currentURL}" target="_blank">${currentURL}</a>
-        </span>
-      </div>
-    `;
+  console.info = function(...args) {
+    originalConsole.info.apply(console, args);
+    logToConsoleTab(args.join(' '), 'info');
+  };
 
-    const logContainer = document.getElementById("actionLogs");
-    if (logContainer) {
-      logContainer.insertAdjacentHTML("beforeend", logHTML);
+  // Intercept fetch requests
+  const originalFetch = window.fetch;
+  window.fetch = async function(...args) {
+    const startTime = performance.now();
+    try {
+      const response = await originalFetch.apply(this, args);
+      const duration = (performance.now() - startTime).toFixed(2);
+      logNetworkActivity(
+        args[1]?.method || 'GET',
+        args[0],
+        response.status,
+        duration
+      );
+      return response;
+    } catch (error) {
+      const duration = (performance.now() - startTime).toFixed(2);
+      logNetworkActivity(
+        args[1]?.method || 'GET',
+        args[0],
+        'ERROR',
+        duration
+      );
+      throw error;
     }
-  });
-  const aiDebugTab = document.getElementById("ai-debug");
-  if (aiDebugTab) {
-    aiDebugTab.innerHTML = "";
+  };
 
-    const aiMessages = document.createElement("div");
-    aiMessages.id = "ai-messages";
-    aiMessages.style.maxHeight = "400px";
-    aiMessages.style.overflowY = "auto";
-    aiMessages.style.marginBottom = "10px";
+  // Intercept XHR requests
+  const XHR = XMLHttpRequest.prototype;
+  const originalOpen = XHR.open;
+  const originalSend = XHR.send;
 
-    const inputContainer = document.createElement("div");
-    inputContainer.style.display = "flex";
-    inputContainer.style.marginTop = "10px";
+  XHR.open = function(method, url) {
+    this._method = method;
+    this._url = url;
+    this._startTime = performance.now();
+    return originalOpen.apply(this, arguments);
+  };
 
-    const aiInput = document.createElement("input");
-    aiInput.type = "text";
-    aiInput.id = "aiInput";
-    aiInput.placeholder = "Ask anything or paste some code to fix...";
-    aiInput.style.flex = "1";
-    aiInput.style.padding = "8px";
-
-    const aiSendBtn = document.createElement("button");
-    aiSendBtn.id = "aiSendBtn";
-    aiSendBtn.textContent = "➤";
-    aiSendBtn.style.padding = "8px";
-
-    inputContainer.appendChild(aiInput);
-    inputContainer.appendChild(aiSendBtn);
-    aiDebugTab.appendChild(aiMessages);
-    aiDebugTab.appendChild(inputContainer);
-
-    const apiKey = "YOUR-OPENAI-API-KEY"; 
-
-    function appendAIMessage(text, sender) {
-      const messageDiv = document.createElement("div");
-      messageDiv.className = sender;
-      messageDiv.style.marginBottom = "10px";
-      messageDiv.style.textAlign = sender === "user" ? "right" : "left";
-      messageDiv.innerHTML = `
-        <div style="display: inline-block; background: ${sender === "user" ? "#cce5ff" : "#e2d5f5"}; padding: 8px 12px; border-radius: 12px; max-width: 80%;">
-          ${text.replace(/\n/g, "<br>")}
-        </div>
-      `;
-      aiMessages.appendChild(messageDiv);
-      aiMessages.scrollTop = aiMessages.scrollHeight;
-    }
-
-    async function sendAIMessage() {
-      const userText = aiInput.value.trim();
-      if (!userText) return;
-
-      appendAIMessage(userText, "user");
-      aiInput.value = "";
-
-      appendAIMessage("Typing...", "bot");
-
-      try {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: userText }]
-          })
-        });
-
-        const data = await response.json();
-        const aiText = data.choices[0].message.content.trim();
-
-        aiMessages.lastChild.remove();
-        appendAIMessage(aiText, "bot");
-
-      } catch (error) {
-        console.error(error);
-        aiMessages.lastChild.remove();
-        appendAIMessage("Error contacting AI server.", "bot");
-      }
-    }
-
-    aiSendBtn.addEventListener("click", sendAIMessage);
-    aiInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") {
-        sendAIMessage();
-      }
+  XHR.send = function() {
+    this.addEventListener('loadend', () => {
+      const duration = (performance.now() - this._startTime).toFixed(2);
+      logNetworkActivity(
+        this._method,
+        this._url,
+        this.status,
+        duration
+      );
     });
-  }
-  
+    return originalSend.apply(this, arguments);
+  };
+
+  // Test logging
+  console.log("Instant replay viewer initialized");
+  console.info("System information loaded");
 });
