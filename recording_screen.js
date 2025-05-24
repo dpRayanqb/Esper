@@ -25,19 +25,28 @@ chrome.runtime.onMessage.addListener(async (message) => {
   }
 
   try {
-    // Request display media directly without using desktopCapture API
+    // Configure screen capture to prefer the entire screen
     recordingStream = await navigator.mediaDevices.getDisplayMedia({
       video: {
         displaySurface: 'monitor',
         logicalSurface: true,
-        cursor: 'always'
+        cursor: 'always',
+        width: { ideal: window.screen.width },
+        height: { ideal: window.screen.height },
+        frameRate: { ideal: 30 }
       },
-      audio: false
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        sampleRate: 44100
+      },
+      preferCurrentTab: false
     });
 
-    // Create and configure MediaRecorder
+    // Create and configure MediaRecorder with better video quality
     mediaRecorder = new MediaRecorder(recordingStream, {
-      mimeType: 'video/webm;codecs=vp8,opus'
+      mimeType: 'video/webm;codecs=vp9',
+      videoBitsPerSecond: 8000000 // 8 Mbps for better quality
     });
 
     const chunks = [];
@@ -55,7 +64,9 @@ chrome.runtime.onMessage.addListener(async (message) => {
 
     mediaRecorder.onstop = async () => {
       try {
-        const blobFile = new Blob(chunks, { type: 'video/webm' });
+        const blobFile = new Blob(chunks, { 
+          type: 'video/webm;codecs=vp9'
+        });
         const base64 = await fetchBlob(URL.createObjectURL(blobFile));
 
         // Save recording data and logs
@@ -80,8 +91,8 @@ chrome.runtime.onMessage.addListener(async (message) => {
       }
     };
 
-    // Start recording
-    mediaRecorder.start(1000); // Capture chunks every second
+    // Start recording with smaller chunk size for better handling
+    mediaRecorder.start(500);
 
     // Monitor console logs
     const originalConsole = { ...console };
