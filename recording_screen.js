@@ -16,109 +16,126 @@ const convertBlobToBase64 = (blob) => {
   });
 };
 
-chrome.runtime.onMessage.addListener((message) => {
+let mediaRecorder = null;
+let recordingStream = null;
+
+chrome.runtime.onMessage.addListener(async (message) => {
   if (message.name !== 'startRecordingOnBackground') {
     return;
   }
 
-  // Use desktop capture API to get the screen ID first
-  chrome.desktopCapture.chooseDesktopMedia(['screen'], async (streamId) => {
-    if (!streamId) {
-      console.error('No screen selected');
-      return;
-    }
+  try {
+    // Request display media directly without using desktopCapture API
+    recordingStream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        displaySurface: 'monitor',
+        logicalSurface: true,
+        cursor: 'always'
+      },
+      audio: false
+    });
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: streamId
-          }
-        }
-      });
+    // Create and configure MediaRecorder
+    mediaRecorder = new MediaRecorder(recordingStream, {
+      mimeType: 'video/webm;codecs=vp8,opus'
+    });
 
-      const mediaRecorder = new MediaRecorder(stream);
-      const chunks = [];
+    const chunks = [];
+    const logs = {
+      network: [],
+      console: [],
+      actions: []
+    };
 
-      // Store network and console logs
-      const logs = {
-        network: [],
-        console: [],
-        actions: []
-      };
-
-      mediaRecorder.ondataavailable = function(e) {
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
         chunks.push(e.data);
-      };
+      }
+    };
 
-      mediaRecorder.onstop = async function(e) {
-        const blobFile = new Blob(chunks, { type: "video/webm" });
+    mediaRecorder.onstop = async () => {
+      try {
+        const blobFile = new Blob(chunks, { type: 'video/webm' });
         const base64 = await fetchBlob(URL.createObjectURL(blobFile));
 
-        // Save the recording data and logs
-        chrome.storage.local.set({ 
+        // Save recording data and logs
+        await chrome.storage.local.set({
           latestRecording: base64,
           recordingLogs: logs,
           recordingTimestamp: new Date().toISOString()
         });
 
-        // Open the instant replay page
-        chrome.tabs.create({ 
-          url: chrome.runtime.getURL("instant_replay.html")
+        // Open instant replay in new tab
+        await chrome.tabs.create({
+          url: chrome.runtime.getURL('instant_replay.html')
         });
 
-        stream.getTracks().forEach(track => track.stop());
+        // Cleanup
+        if (recordingStream) {
+          recordingStream.getTracks().forEach(track => track.stop());
+        }
         window.close();
-      };
+      } catch (error) {
+        console.error('Error in onstop handler:', error);
+      }
+    };
 
-      mediaRecorder.start();
+    // Start recording
+    mediaRecorder.start(1000); // Capture chunks every second
 
-      // Listen for console logs
-      const originalConsole = { ...console };
-      console = new Proxy(console, {
-        get: (target, prop) => {
-          if (['log', 'error', 'warn', 'info'].includes(prop)) {
-            return (...args) => {
-              logs.console.push({
-                type: prop,
-                message: args.join(' '),
-                timestamp: new Date().toISOString()
-              });
-              originalConsole[prop](...args);
-            };
-          }
-          return target[prop];
+    // Monitor console logs
+    const originalConsole = { ...console };
+    console = new Proxy(console, {
+      get: (target, prop) => {
+        if (['log', 'error', 'warn', 'info'].includes(prop)) {
+          return (...args) => {
+            logs.console.push({
+              type: prop,
+              message: args.join(' '),
+              timestamp: new Date().toISOString()
+            });
+            originalConsole[prop](...args);
+          };
         }
-      });
+        return target[prop];
+      }
+    });
 
-      // Monitor network requests
-      const originalFetch = window.fetch;
-      window.fetch = async function(...args) {
-        const startTime = performance.now();
-        try {
-          const response = await originalFetch.apply(this, args);
-          logs.network.push({
-            url: args[0],
-            status: response.status,
-            duration: performance.now() - startTime,
-            timestamp: new Date().toISOString()
-          });
-          return response;
-        } catch (error) {
-          logs.network.push({
-            url: args[0],
-            error: error.message,
-            duration: performance.now() - startTime,
-            timestamp: new Date().toISOString()
-          });
-          throw error;
-        }
-      };
+    // Monitor network requests
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+      const startTime = performance.now();
+      try {
+        const response = await originalFetch.apply(this, args);
+        logs.network.push({
+          url: args[0],
+          status: response.status,
+          duration: performance.now() - startTime,
+          timestamp: new Date().toISOString()
+        });
+        return response;
+      } catch (error) {
+        logs.network.push({
+          url: args[0],
+          error: error.message,
+          duration: performance.now() - startTime,
+          timestamp: new Date().toISOString()
+        });
+        throw error;
+      }
+    };
 
-    } catch (error) {
-      console.error('Error accessing media devices:', error);
-    }
-  });
+  } catch (error) {
+    console.error('Error starting recording:', error);
+  }
+});
+
+// Cleanup on window unload
+window.addEventListener('unload', () => {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  if (recordingStream) {
+    recordingStream.getTracks().forEach(track => track.stop());
+  }
 });
