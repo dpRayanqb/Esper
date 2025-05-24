@@ -16,137 +16,57 @@ const convertBlobToBase64 = (blob) => {
   });
 };
 
-let mediaRecorder = null;
-let recordingStream = null;
-
-chrome.runtime.onMessage.addListener(async (message) => {
+chrome.runtime.onMessage.addListener((message) => {
   if (message.name !== 'startRecordingOnBackground') {
     return;
   }
 
-  try {
-    // Configure screen capture to prefer the entire screen
-    recordingStream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        displaySurface: 'monitor',
-        logicalSurface: true,
-        cursor: 'always',
-        width: { ideal: window.screen.width },
-        height: { ideal: window.screen.height },
-        frameRate: { ideal: 30 }
-      },
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        sampleRate: 44100
-      },
-      preferCurrentTab: false
+  navigator.mediaDevices.getDisplayMedia({
+    video: {
+      cursor: 'always',
+      displaySurface: 'monitor'
+    },
+    audio: false,
+    systemAudio: 'include'
+  }).then(stream => {
+    const mediaRecorder = new MediaRecorder(stream, {
+      mimeType: 'video/webm;codecs=vp8,opus',
+      videoBitsPerSecond: 2500000 // 2.5 Mbps
     });
-
-    // Create and configure MediaRecorder with better video quality
-    mediaRecorder = new MediaRecorder(recordingStream, {
-      mimeType: 'video/webm;codecs=vp9',
-      videoBitsPerSecond: 8000000 // 8 Mbps for better quality
-    });
-
+    
     const chunks = [];
-    const logs = {
-      network: [],
-      console: [],
-      actions: []
+
+    mediaRecorder.ondataavailable = function(e) {
+      chunks.push(e.data);
     };
 
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        chunks.push(e.data);
-      }
+    mediaRecorder.onstop = async function(e) {
+      const blobFile = new Blob(chunks, { type: 'video/webm' });
+      const base64 = await fetchBlob(URL.createObjectURL(blobFile));
+
+      // Save the base64 video to local storage
+      chrome.storage.local.set({ latestRecording: base64 });
+
+      // Create instant replay tab
+      chrome.tabs.create({ 
+        url: chrome.runtime.getURL('instant_replay.html')
+      });
+
+      // Stop all tracks
+      stream.getTracks().forEach(track => track.stop());
+      
+      // Close recording tab
+      window.close();
     };
 
-    mediaRecorder.onstop = async () => {
-      try {
-        const blobFile = new Blob(chunks, { 
-          type: 'video/webm;codecs=vp9'
-        });
-        const base64 = await fetchBlob(URL.createObjectURL(blobFile));
+    mediaRecorder.start(1000); // Capture chunks every second
 
-        // Save recording data and logs
-        await chrome.storage.local.set({
-          latestRecording: base64,
-          recordingLogs: logs,
-          recordingTimestamp: new Date().toISOString()
-        });
-
-        // Open instant replay in new tab
-        await chrome.tabs.create({
-          url: chrome.runtime.getURL('instant_replay.html')
-        });
-
-        // Cleanup
-        if (recordingStream) {
-          recordingStream.getTracks().forEach(track => track.stop());
-        }
-        window.close();
-      } catch (error) {
-        console.error('Error in onstop handler:', error);
-      }
-    };
-
-    // Start recording with smaller chunk size for better handling
-    mediaRecorder.start(500);
-
-    // Monitor console logs
-    const originalConsole = { ...console };
-    console = new Proxy(console, {
-      get: (target, prop) => {
-        if (['log', 'error', 'warn', 'info'].includes(prop)) {
-          return (...args) => {
-            logs.console.push({
-              type: prop,
-              message: args.join(' '),
-              timestamp: new Date().toISOString()
-            });
-            originalConsole[prop](...args);
-          };
-        }
-        return target[prop];
-      }
+    // Switch back to original tab
+    chrome.tabs.update(message.body.currentTab.id, { 
+      active: true, 
+      selected: true 
     });
-
-    // Monitor network requests
-    const originalFetch = window.fetch;
-    window.fetch = async function(...args) {
-      const startTime = performance.now();
-      try {
-        const response = await originalFetch.apply(this, args);
-        logs.network.push({
-          url: args[0],
-          status: response.status,
-          duration: performance.now() - startTime,
-          timestamp: new Date().toISOString()
-        });
-        return response;
-      } catch (error) {
-        logs.network.push({
-          url: args[0],
-          error: error.message,
-          duration: performance.now() - startTime,
-          timestamp: new Date().toISOString()
-        });
-        throw error;
-      }
-    };
-
-  } catch (error) {
-    console.error('Error starting recording:', error);
-  }
-});
-
-// Cleanup on window unload
-window.addEventListener('unload', () => {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-  }
-  if (recordingStream) {
-    recordingStream.getTracks().forEach(track => track.stop());
-  }
+  }).catch(error => {
+    console.error('Error accessing media devices:', error);
+  });
 });
