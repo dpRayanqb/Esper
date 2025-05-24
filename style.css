@@ -1,0 +1,42 @@
+body {
+    width: 350px;
+    height: 250px;
+}
+i.bi.bi-house-door {
+    color: grey;
+}
+i.bi.bi-gear {
+    color: grey;
+}
+
+i.bi.bi-question-circle {
+    color: grey;
+}
+button {
+    width: 224px;
+    border-radius: 20px;
+    margin-top: 10px;
+    padding: 10px 15px;
+    border: 2px solid black !important;
+    background-color: white !important;
+    color: black !important;
+    font-size: 16px;
+    font-weight: 500;
+    text-align: right;
+    transition: all 0.3s ease;
+  }
+  
+  button i {
+    margin-left: 8px;
+  }
+  button#instantReplayButton {
+    border-radius: 15px;
+}
+
+button#startRecordingButton{
+    border-radius: 15px;
+}
+
+button#screenshotButton{
+    border-radius: 15px;
+}
