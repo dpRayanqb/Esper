@@ -5,6 +5,9 @@ const startRecording = async () => {
     currentWindow: true
   });
 
+  // Notify content script that recording is starting
+  chrome.tabs.sendMessage(currentTab.id, { name: 'startRecording' });
+
   // Create recording screen tab
   const tab = await chrome.tabs.create({
     url: chrome.runtime.getURL('recording_screen.html'),

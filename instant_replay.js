@@ -6,45 +6,71 @@ document.addEventListener("DOMContentLoaded", function () {
   const metaSize = document.getElementById("metaSize");
   const errorMarkers = new Set(); // Store error timestamps
 
-  // Load latest screen recording
+  // Load latest screen recording and logs
   function loadLatestRecording() {
-    chrome.storage.local.get("latestRecording", (result) => {
-      const base64Video = result.latestRecording;
-      if (!base64Video) {
+    chrome.storage.local.get(["latestRecording", "capturedLogs", "capturedNetwork"], (result) => {
+      const { latestRecording, capturedLogs, capturedNetwork } = result;
+      
+      if (!latestRecording) {
         console.log("No recent recording found.");
         return;
       }
 
       // Set video src
-      video.src = base64Video;
+      video.src = latestRecording;
       video.load();
+
+      // Display captured logs
+      if (capturedLogs) {
+        capturedLogs.forEach(log => {
+          logToConsoleTab(log.message, log.type);
+          if (log.type === 'error') {
+            errorMarkers.add(log.timestamp / 1000); // Convert to seconds
+          }
+        });
+      }
+
+      // Display captured network requests
+      if (capturedNetwork) {
+        capturedNetwork.forEach(request => {
+          logNetworkActivity(
+            request.method,
+            request.url,
+            request.status,
+            request.duration,
+            request.timestamp / 1000 // Convert to seconds
+          );
+          if (request.status >= 400) {
+            errorMarkers.add(request.timestamp / 1000);
+          }
+        });
+      }
+
+      updateVideoMarkers();
     });
 
-    async function getSystemInfo() {
-      const testInternetSpeed = () => {
-        return new Promise((resolve) => {
-          const image = new Image();
-          const imageSizeBytes = 500000;
-          const startTime = performance.now();
+    async function testInternetSpeed() {
+      return new Promise((resolve) => {
+        const image = new Image();
+        const imageSizeBytes = 500000;
+        const startTime = performance.now();
 
-          image.onload = () => {
-            const endTime = performance.now();
-            const durationSeconds = (endTime - startTime) / 1000;
-            const bitsLoaded = imageSizeBytes * 8;
-            const speedMbps = (bitsLoaded / durationSeconds / 1024 / 1024).toFixed(2);
-            resolve(`${speedMbps} Mbps`);
-          };
+        image.onload = () => {
+          const endTime = performance.now();
+          const durationSeconds = (endTime - startTime) / 1000;
+          const bitsLoaded = imageSizeBytes * 8;
+          const speedMbps = (bitsLoaded / durationSeconds / 1024 / 1024).toFixed(2);
+          resolve(`${speedMbps} Mbps`);
+        };
 
-          image.onerror = () => resolve("Unable to test");
-          image.src = `https://picsum.photos/200/300?t=${Date.now()}`;
-        });
-      };
-
-      const internetSpeed = await testInternetSpeed();
-      document.getElementById("metaSpeed").textContent = internetSpeed;
+        image.onerror = () => resolve("Unable to test");
+        image.src = `https://picsum.photos/200/300?t=${Date.now()}`;
+      });
     }
 
-    getSystemInfo();
+    testInternetSpeed().then(speed => {
+      document.getElementById("metaSpeed").textContent = speed;
+    });
   }
 
   playButton.addEventListener("click", () => {
