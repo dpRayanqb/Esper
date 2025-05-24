@@ -1,6 +1,5 @@
 {
-  "name": 
-"  Rayan1",
+  "name": "  Rayan1",
   "description": "Minimal example for recording any screen/window in manifest V3, allowing redirection on current tab",
   "version": "1.0",
   "manifest_version": 3,
@@ -13,12 +12,10 @@
     "128": "logo.png"
   },
   
-
- "host_permissions": [
-        "http://*/",
-        "https://*/*"
-    ],
- 
+  "host_permissions": [
+    "http://*/",
+    "https://*/*"
+  ],
   
   "background": {
     "service_worker": "background.js",
@@ -30,8 +27,11 @@
       "js":["content.js"]
     }
   ],
-  "permissions": ["tabs",
-  "storage",
-  "activeTab",
-  "desktopCapture"]
+  "permissions": [
+    "tabs",
+    "storage",
+    "activeTab",
+    "desktopCapture",
+    "scripting"
+  ]
 }
