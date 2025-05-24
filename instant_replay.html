@@ -95,7 +95,6 @@
     }
     
     .nav-tabs .nav-link {
-    
         font-size: 11px;
         color: #999;
         padding: 10px 3px;
@@ -104,8 +103,6 @@
         font-weight: 500;
         margin-right: 4px;
     }
-    
-    
     
     .nav-tabs .nav-link.active {
       color: #f56c6c;
@@ -146,8 +143,8 @@
     
     #console-logs {
       max-width: 800px;
-    margin-bottom: 300px;
-    overflow-wrap: break-word;
+      margin-bottom: 300px;
+      overflow-wrap: break-word;
     }
 
     .log-entry {
@@ -193,11 +190,11 @@
     }
     .log-entry {
       border-color: dodgerblue;
-  }
-  span.log-timestamp {
-    font-size: 10px;
-    font-family: monospace;
-}
+    }
+    span.log-timestamp {
+      font-size: 10px;
+      font-family: monospace;
+    }
 
     .log-entry.expanded .log-details {
       display: block;
@@ -208,15 +205,15 @@
     span.time {
       font-size: 10px;
       font-family: monospace;
-  }
-  input#aiInput {
-    border: none;
-}
-button#aiSendBtn {
-  border: none;
-  border-radius: 8px;
-  background-color: coral;
-}
+    }
+    input#aiInput {
+      border: none;
+    }
+    button#aiSendBtn {
+      border: none;
+      border-radius: 8px;
+      background-color: coral;
+    }
   </style>
 </head>
 <body>
@@ -227,17 +224,14 @@ button#aiSendBtn {
   </div>
 
   <div class="main-container">
-
     <div class="video-section" id="videoSection">
       <div class="video-wrapper">
         <video id="replay-video" controls autoplay style="width: 100%"></video>
         <button id="playButton">▶</button>
-  
       </div>
     </div> 
 
     <div class="sidebar">
-
       <ul class="nav nav-tabs mb-2" id="sideTabs">
         <li class="nav-item">
           <a class="nav-link active" data-tab="info" href="#">Info</a>
@@ -258,10 +252,8 @@ button#aiSendBtn {
           <a class="nav-link" data-tab="ai-debug" href="#">AI-Debug</a>
         </li>
       </ul>
-    
 
       <div class="tab-content" id="tabContents">
-
         <div class="tab-pane active" id="info">
           <div class="meta-section">
             <p><strong>URL:</strong> <span id="metaUrl">N/A</span></p>
@@ -269,15 +261,13 @@ button#aiSendBtn {
             <p><strong>OS:</strong> Windows</p>
             <p><strong>Browser:</strong> Chrome</p>
             <p><strong>Window size:</strong> <span id="metaSize">1600x739</span></p>
-            <p><strong>Location:</strong> <span id="metaLocation">Detecting...</span></p>
-  <p><strong>Internet speed:</strong> <span id="metaSpeed">Testing...</span></p>
+            <p><strong>Internet speed:</strong> <span id="metaSpeed">Testing...</span></p>
           </div>
           <div class="metadata-footer mt-3">
             <p><strong>Your metadata:</strong></p>
             <code>  مهاده.metadata({})</code>
           </div>
         </div>
-      
 
         <div class="tab-pane" id="console">
           <div id="console-logs" class="console-logs" style="font-family: monospace; font-size: 13px;"></div>
@@ -286,29 +276,22 @@ button#aiSendBtn {
         <div class="tab-pane" id="network">
           <div id="network-logs" class="console-logs" style="font-family: monospace; font-size: 13px; "></div>
         </div>
-      
-   
+
         <div class="tab-pane" id="actions">
-          <div id="actionLogs">
-      
-          </div>
+          <div id="actionLogs"></div>
         </div>
-      
+
         <div class="tab-pane" id="backend">
           <p>Backend requests and logs...</p>
         </div>
-      
+
         <div class="tab-pane" id="ai-debug">
           <p>AI debugging information...</p>
         </div>
-      
-      </div>
-      
       </div>
     </div>
   </div>
 
   <script src="instant_replay.js"></script>
-  
 </body>
 </html>

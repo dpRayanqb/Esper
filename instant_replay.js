@@ -20,26 +20,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     async function getSystemInfo() {
-      const fetchLocation = () => {
-        return new Promise((resolve) => {
-          if ("geolocation" in navigator) {
-            navigator.geolocation.getCurrentPosition(
-              (position) => {
-                const lat = position.coords.latitude.toFixed(4);
-                const lon = position.coords.longitude.toFixed(4);
-                resolve(`Latitude: ${lat}<br>Longitude: ${lon}`);
-              },
-              (error) => {
-                console.warn("Geolocation error:", error.message);
-                resolve("Permission denied or unavailable");
-              }
-            );
-          } else {
-            resolve("Geolocation is not supported by this browser.");
-          }
-        });
-      };
-
       const testInternetSpeed = () => {
         return new Promise((resolve) => {
           const image = new Image();
@@ -59,10 +39,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
       };
 
-      const location = await fetchLocation();
       const internetSpeed = await testInternetSpeed();
-
-      document.getElementById("metaLocation").textContent = location;
       document.getElementById("metaSpeed").textContent = internetSpeed;
     }
 
