@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const metaUrl = document.getElementById("metaUrl");
   const metaTime = document.getElementById("metaTime");
   const metaSize = document.getElementById("metaSize");
+  const errorMarkers = new Set(); // Store error timestamps
 
   // Load latest screen recording
   function loadLatestRecording() {
@@ -58,49 +59,94 @@ document.addEventListener("DOMContentLoaded", function () {
     metaSize.textContent = `${window.innerWidth}x${window.innerHeight}`;
   }
 
-  loadLatestRecording();
-  setMetadata();
+  // Add error marker to video timeline
+  function addErrorMarker(timestamp) {
+    errorMarkers.add(timestamp);
+    updateVideoMarkers();
+  }
 
-  // Tab switching logic
-  document.querySelectorAll("#sideTabs .nav-link").forEach(link => {
-    link.addEventListener("click", function (e) {
-      e.preventDefault();
-      document.querySelectorAll("#sideTabs .nav-link").forEach(l => l.classList.remove("active"));
-      this.classList.add("active");
+  // Update video timeline markers
+  function updateVideoMarkers() {
+    const timeline = document.createElement('div');
+    timeline.className = 'video-timeline';
+    timeline.style.position = 'relative';
+    timeline.style.height = '20px';
+    timeline.style.backgroundColor = '#f0f0f0';
+    timeline.style.marginTop = '10px';
+    timeline.style.borderRadius = '4px';
+    timeline.style.overflow = 'hidden';
 
-      document.querySelectorAll("#tabContents .tab-pane").forEach(pane => {
-        pane.classList.remove("active");
-        pane.style.display = "none";
+    errorMarkers.forEach(timestamp => {
+      const marker = document.createElement('div');
+      marker.className = 'error-marker';
+      marker.style.position = 'absolute';
+      marker.style.left = `${(timestamp / video.duration) * 100}%`;
+      marker.style.top = '0';
+      marker.style.width = '4px';
+      marker.style.height = '100%';
+      marker.style.backgroundColor = 'red';
+      marker.style.cursor = 'pointer';
+      
+      marker.title = `Error at ${new Date(timestamp * 1000).toISOString().substr(11, 8)}`;
+      
+      marker.addEventListener('click', () => {
+        video.currentTime = timestamp;
       });
-
-      const selectedTab = this.getAttribute("data-tab");
-      const selectedTabContent = document.getElementById(selectedTab);
-      selectedTabContent.classList.add("active");
-      selectedTabContent.style.display = "block";
+      
+      timeline.appendChild(marker);
     });
-  });
 
-  // Network logging
+    const existingTimeline = document.querySelector('.video-timeline');
+    if (existingTimeline) {
+      existingTimeline.replaceWith(timeline);
+    } else {
+      video.parentElement.appendChild(timeline);
+    }
+  }
+
+  // Network logging with timestamps
   function logNetworkActivity(method, url, status, duration) {
     const logContainer = document.getElementById("network-logs");
     const logEntry = document.createElement("div");
-    logEntry.className = "log-entry";
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    logEntry.className = `log-entry ${status >= 400 ? 'error' : ''}`;
+    
+    const timestamp = new Date().toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      fractionalSecondDigits: 3 
+    });
+    
     logEntry.innerHTML = `
-      <span class="log-timestamp">${timestamp}</span>
-      <span class="log-type">:</span>
-      <span class="log-message">${method} ${url} [${status}] - ${duration}ms</span>
+      <div class="log-header">
+        <span class="log-timestamp">${timestamp}</span>
+        <span class="log-type ${status >= 400 ? 'text-danger' : ''}">${method}</span>
+      </div>
+      <div class="log-message">
+        ${url} [${status}] - ${duration}ms
+      </div>
     `;
+
+    if (status >= 400) {
+      addErrorMarker(video.currentTime);
+    }
+
     logContainer.appendChild(logEntry);
     logContainer.scrollTop = logContainer.scrollHeight;
   }
 
-  // Console logging
+  // Console logging with timestamps
   function logToConsoleTab(message, type = "log") {
     const logContainer = document.getElementById("console-logs");
     const logEntry = document.createElement("div");
     logEntry.className = `log-entry ${type}`;
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    const timestamp = new Date().toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      fractionalSecondDigits: 3 
+    });
     
     let displayMessage = message;
     if (typeof message === 'object') {
@@ -112,11 +158,17 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     logEntry.innerHTML = `
-      <span class="log-timestamp">${timestamp}</span>
-      <span class="log-type">:</span>
-      <span class="log-message">${displayMessage}</span>
+      <div class="log-header">
+        <span class="log-timestamp">${timestamp}</span>
+        <span class="log-type ${type === 'error' ? 'text-danger' : ''}">${type}</span>
+      </div>
+      <div class="log-message">${displayMessage}</div>
     `;
-    
+
+    if (type === 'error') {
+      addErrorMarker(video.currentTime);
+    }
+
     logContainer.appendChild(logEntry);
     logContainer.scrollTop = logContainer.scrollHeight;
   }
@@ -193,12 +245,35 @@ document.addEventListener("DOMContentLoaded", function () {
       logNetworkActivity(
         this._method,
         this._url,
-        this.status,
+        this.status || 'ERROR',
         duration
       );
     });
     return originalSend.apply(this, arguments);
   };
+
+  // Initialize
+  loadLatestRecording();
+  setMetadata();
+
+  // Tab switching logic
+  document.querySelectorAll("#sideTabs .nav-link").forEach(link => {
+    link.addEventListener("click", function (e) {
+      e.preventDefault();
+      document.querySelectorAll("#sideTabs .nav-link").forEach(l => l.classList.remove("active"));
+      this.classList.add("active");
+
+      document.querySelectorAll("#tabContents .tab-pane").forEach(pane => {
+        pane.classList.remove("active");
+        pane.style.display = "none";
+      });
+
+      const selectedTab = this.getAttribute("data-tab");
+      const selectedTabContent = document.getElementById(selectedTab);
+      selectedTabContent.classList.add("active");
+      selectedTabContent.style.display = "block";
+    });
+  });
 
   // Test logging
   console.log("Instant replay viewer initialized");
